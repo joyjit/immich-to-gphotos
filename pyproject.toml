@@ -1,0 +1,42 @@
+[project]
+name = "immich-to-gphotos"
+version = "0.1.0"
+description = "Upload Immich album originals to Google Photos via Playwright"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "joyjit" }]
+keywords = ["immich", "google-photos", "playwright", "backup", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "httpx>=0.27",
+    "playwright>=1.40",
+    "rawpy>=0.19",
+    "numpy>=1.26",
+    "Pillow>=10.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/joyjit/immich-to-gphotos"
+Repository = "https://github.com/joyjit/immich-to-gphotos"
+Issues = "https://github.com/joyjit/immich-to-gphotos/issues"
+
+[project.scripts]
+immich-to-gphotos = "immich_to_gphotos.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["immich_to_gphotos"]

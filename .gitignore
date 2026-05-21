@@ -1,0 +1,46 @@
+# Secrets — copy immich.conf-example to ~/.local/share/immich-to-gphotos/immich.conf
+immich.conf
+
+# Dev-only launcher (runs .venv/bin/...); not for pipx/git installs
+/immich-to-gphotos
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+
+# Test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+
+# Local runtime (if paths pointed into the repo during dev)
+google-storage.json
+chrome-profile/
+state/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

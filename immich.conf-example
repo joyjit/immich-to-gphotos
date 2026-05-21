@@ -1,0 +1,5 @@
+# Default location: ~/.local/share/immich-to-gphotos/immich.conf
+# Copy this file there, fill in values, and chmod 600 the copy.
+
+IMMICH_API_KEY=your-immich-api-key
+IMMICH_URL=https://immich.example.com
