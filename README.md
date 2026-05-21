@@ -24,8 +24,9 @@ sudo apt install google-chrome-stable
 ### pipx (recommended)
 
 ```bash
-pipx install git+https://github.com/joyjit/immich-to-gphotos.git
-# or pin a release:
+pipx install immich-to-gphotos
+# or from GitHub:
+# pipx install git+https://github.com/joyjit/immich-to-gphotos.git
 # pipx install git+https://github.com/joyjit/immich-to-gphotos.git@v0.1.0
 ```
 
