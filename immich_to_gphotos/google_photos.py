@@ -17,6 +17,7 @@ PHOTOS_HOME = "https://photos.google.com/"
 PHOTOS_APP = "https://photos.google.com/"
 UPLOAD_BATCH_SIZE = 30
 UPLOAD_SETTLE_SECONDS = 15
+REFRESH_SESSION_WAIT_MS = 60_000
 
 
 class GooglePhotosError(Exception):
@@ -75,8 +76,14 @@ class GooglePhotosSession:
             )
 
         with sync_playwright() as p:
-            browser, context, page = self._launch(p, headless=True)
+            browser, context, page = self._launch(p, headless=True, wait_after_goto_ms=0)
             try:
+                try:
+                    _wait_for_photos_app(page, timeout_ms=REFRESH_SESSION_WAIT_MS)
+                except Exception as exc:
+                    raise GooglePhotosError(
+                        "timed out waiting for Google Photos during session refresh"
+                    ) from exc
                 _require_signed_in(page)
                 _save_storage_state(context, self._auth_file)
             finally:
@@ -108,12 +115,19 @@ class GooglePhotosSession:
                 context.close()
                 browser.close()
 
-    def _launch(self, p: Playwright, *, headless: bool) -> tuple[Browser, object, Page]:
+    def _launch(
+        self,
+        p: Playwright,
+        *,
+        headless: bool,
+        wait_after_goto_ms: int = 2000,
+    ) -> tuple[Browser, object, Page]:
         browser = _launch_system_chrome(p, headless=headless)
         context = browser.new_context(storage_state=str(self._auth_file))
         page = context.new_page()
         page.goto(PHOTOS_HOME, wait_until="domcontentloaded", timeout=60_000)
-        page.wait_for_timeout(2000)
+        if wait_after_goto_ms:
+            page.wait_for_timeout(wait_after_goto_ms)
         return browser, context, page
 
 
