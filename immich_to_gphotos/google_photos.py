@@ -67,6 +67,23 @@ class GooglePhotosSession:
             close_fn()
         log.info(f"saved Google session to {self._auth_file}")
 
+    def refresh_session(self) -> None:
+        """Headless visit to Google Photos; persist refreshed cookies or fail if expired."""
+        if not self._auth_file.is_file():
+            raise GooglePhotosError(
+                f"Google session not found at {self._auth_file}; run: immich-to-gphotos auth"
+            )
+
+        with sync_playwright() as p:
+            browser, context, page = self._launch(p, headless=True)
+            try:
+                _require_signed_in(page)
+                _save_storage_state(context, self._auth_file)
+            finally:
+                context.close()
+                browser.close()
+        log.info(f"refreshed Google session at {self._auth_file}")
+
     def upload_files(self, album_name: str, file_paths: list[Path]) -> None:
         """Upload files to an existing album."""
         if not file_paths:
@@ -79,15 +96,14 @@ class GooglePhotosSession:
         with sync_playwright() as p:
             browser, context, page = self._launch(p, headless=True)
             try:
-                if _needs_login(page):
-                    raise GooglePhotosError(
-                        "Google session expired; run: immich-to-gphotos auth"
-                    )
+                _require_signed_in(page)
                 _open_album(page, album_name)
                 for batch in _chunks(file_paths, UPLOAD_BATCH_SIZE):
                     _upload_batch(page, batch)
                     if len(file_paths) > UPLOAD_BATCH_SIZE:
                         page.wait_for_timeout(2000)
+                _save_storage_state(context, self._auth_file)
+                log.info(f"refreshed Google session at {self._auth_file}")
             finally:
                 context.close()
                 browser.close()
@@ -271,6 +287,11 @@ def _needs_login(page: Page) -> bool:
     if "/photos/about" in url:
         return True
     return "photos.google.com" not in url and "/photos" not in url
+
+
+def _require_signed_in(page: Page) -> None:
+    if _needs_login(page):
+        raise GooglePhotosError("Google session expired; run: immich-to-gphotos auth")
 
 
 def _album_title_pattern(album_name: str, *, exact: bool = False) -> re.Pattern[str]:

@@ -43,18 +43,18 @@ def run_upload(
 
     try:
         paths_to_upload = _prepare_files(client, assets, state, tmp_root)
-        if not paths_to_upload:
-            log.info("no new files to upload")
-            clear_failure_screenshots()
-            return
-
-        log.info(f"uploading {len(paths_to_upload)} file(s) to Google album \"{google_album}\"")
         google = GooglePhotosSession(config.auth_file)
-        google.upload_files(google_album, paths_to_upload)
 
-        for path in paths_to_upload:
-            state.mark_uploaded(path.name)
-            log.info(f'uploaded {path.name} to album "{google_album}"')
+        if paths_to_upload:
+            log.info(f"uploading {len(paths_to_upload)} file(s) to Google album \"{google_album}\"")
+            google.upload_files(google_album, paths_to_upload)
+            for path in paths_to_upload:
+                state.mark_uploaded(path.name)
+                log.info(f'uploaded {path.name} to album "{google_album}"')
+        else:
+            log.info("no new files to upload")
+            google.refresh_session()
+
         clear_failure_screenshots()
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)

@@ -69,6 +69,8 @@ google-chrome --remote-debugging-port=9222 https://photos.google.com
 immich-to-gphotos auth --cdp-url http://127.0.0.1:9222
 ```
 
+`auth` needs a graphical session (local desktop or switch-user). Plain SSH without a display cannot open Chrome; use `--cdp-url` instead (see above).
+
 ### Upload
 
 ```bash
@@ -86,6 +88,13 @@ immich-to-gphotos upload \
   --immich-url https://immich.example.com
 ```
 
+Every `upload` run validates the Google session, even when Immich has nothing new:
+
+- **New files** — upload to Google, then save refreshed cookies to `google-storage.json`.
+- **Nothing new** — headless visit to Google Photos only; rewrite `google-storage.json` if still signed in.
+
+If the session is missing or expired, `upload` exits **4** on every run (including idle cron runs). Previously, a run with no new files could exit **0** while the Google session was already dead.
+
 ## Behavior
 
 | Topic | Behavior |
@@ -98,6 +107,7 @@ immich-to-gphotos upload \
 | Live Photo | Uploads image + motion video when Immich links them |
 | exiftool errors | Warning only; file still uploaded |
 | Google album | Must already exist (yours or shared with you); not created by this tool |
+| Google session | Checked on every `upload`; cookies refreshed when signed in |
 
 ## Exit codes
 
@@ -115,10 +125,14 @@ Logs go to stderr with journal-style prefixes, e.g. `<6>immich-to-gphotos: …`.
 
 ## Cron
 
-Run `upload` on a schedule once `auth` has been done and `immich.conf` is in place. Re-run `auth` when uploads fail with exit code 4.
+Run `upload` on a schedule once `auth` has been done and `immich.conf` is in place. Re-run `auth` when uploads fail with exit code 4 (typically every few weeks, not on a fixed schedule).
+
+Cron does not use your login `PATH`. Use the full path to the CLI, e.g. `/home/you/.local/bin/immich-to-gphotos`.
+
+Each scheduled `upload` launches headless Chrome to validate or refresh the Google session. A frequent schedule (e.g. every 5 minutes) is fine on a small server but does add overhead when there is nothing to upload.
 
 ```cron
-0 3 * * * immich-to-gphotos upload --immich-album "Backup" --google-album "Backup" 2>&1 | logger -t immich-to-gphotos
+0 3 * * * /home/you/.local/bin/immich-to-gphotos upload --immich-album "Backup" --google-album "Backup" 2>&1 | logger -t immich-to-gphotos
 ```
 
 ## Limitations
