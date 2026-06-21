@@ -81,10 +81,15 @@ class GooglePhotosSession:
                 try:
                     _wait_for_photos_app(page, timeout_ms=REFRESH_SESSION_WAIT_MS)
                 except Exception as exc:
+                    save_failure_screenshot(page)
                     raise GooglePhotosError(
                         "timed out waiting for Google Photos during session refresh"
                     ) from exc
-                _require_signed_in(page)
+                try:
+                    _require_signed_in(page)
+                except GooglePhotosError:
+                    save_failure_screenshot(page)
+                    raise
                 _save_storage_state(context, self._auth_file)
             finally:
                 context.close()

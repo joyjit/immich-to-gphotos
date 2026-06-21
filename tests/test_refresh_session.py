@@ -14,6 +14,7 @@ from immich_to_gphotos.google_photos import (
 
 
 class RefreshSessionTests(unittest.TestCase):
+    @patch("immich_to_gphotos.google_photos.save_failure_screenshot")
     @patch("immich_to_gphotos.google_photos._save_storage_state")
     @patch("immich_to_gphotos.google_photos._require_signed_in")
     @patch("immich_to_gphotos.google_photos._wait_for_photos_app")
@@ -24,6 +25,7 @@ class RefreshSessionTests(unittest.TestCase):
         mock_wait_for_photos_app: MagicMock,
         mock_require_signed_in: MagicMock,
         mock_save_storage_state: MagicMock,
+        mock_save_failure_screenshot: MagicMock,
     ) -> None:
         auth_file = Path("/tmp/fake-google-storage.json")
         session = GooglePhotosSession(auth_file)
@@ -50,7 +52,9 @@ class RefreshSessionTests(unittest.TestCase):
         mock_require_signed_in.assert_called_once_with(page)
         mock_save_storage_state.assert_called_once_with(context, auth_file)
         self.assertEqual(call_order, ["wait", "require"])
+        mock_save_failure_screenshot.assert_not_called()
 
+    @patch("immich_to_gphotos.google_photos.save_failure_screenshot")
     @patch("immich_to_gphotos.google_photos._save_storage_state")
     @patch("immich_to_gphotos.google_photos._require_signed_in")
     @patch("immich_to_gphotos.google_photos._wait_for_photos_app")
@@ -61,6 +65,7 @@ class RefreshSessionTests(unittest.TestCase):
         mock_wait_for_photos_app: MagicMock,
         mock_require_signed_in: MagicMock,
         mock_save_storage_state: MagicMock,
+        mock_save_failure_screenshot: MagicMock,
     ) -> None:
         auth_file = Path("/tmp/fake-google-storage.json")
         session = GooglePhotosSession(auth_file)
@@ -82,7 +87,48 @@ class RefreshSessionTests(unittest.TestCase):
                     session.refresh_session()
 
         self.assertIn("timed out waiting for Google Photos", str(ctx.exception))
+        mock_save_failure_screenshot.assert_called_once_with(page)
         mock_require_signed_in.assert_not_called()
+        mock_save_storage_state.assert_not_called()
+        context.close.assert_called_once()
+        browser.close.assert_called_once()
+
+    @patch("immich_to_gphotos.google_photos.save_failure_screenshot")
+    @patch("immich_to_gphotos.google_photos._save_storage_state")
+    @patch("immich_to_gphotos.google_photos._require_signed_in")
+    @patch("immich_to_gphotos.google_photos._wait_for_photos_app")
+    @patch("immich_to_gphotos.google_photos.sync_playwright")
+    def test_sign_in_failure_saves_screenshot(
+        self,
+        mock_sync_playwright: MagicMock,
+        mock_wait_for_photos_app: MagicMock,
+        mock_require_signed_in: MagicMock,
+        mock_save_storage_state: MagicMock,
+        mock_save_failure_screenshot: MagicMock,
+    ) -> None:
+        auth_file = Path("/tmp/fake-google-storage.json")
+        session = GooglePhotosSession(auth_file)
+        mock_require_signed_in.side_effect = GooglePhotosError(
+            "Google session expired; run: immich-to-gphotos auth"
+        )
+
+        browser = MagicMock()
+        context = MagicMock()
+        page = MagicMock()
+        playwright = MagicMock()
+        mock_sync_playwright.return_value.__enter__.return_value = playwright
+
+        with patch.object(Path, "is_file", return_value=True):
+            with patch.object(
+                GooglePhotosSession,
+                "_launch",
+                return_value=(browser, context, page),
+            ):
+                with self.assertRaises(GooglePhotosError) as ctx:
+                    session.refresh_session()
+
+        self.assertIn("Google session expired", str(ctx.exception))
+        mock_save_failure_screenshot.assert_called_once_with(page)
         mock_save_storage_state.assert_not_called()
         context.close.assert_called_once()
         browser.close.assert_called_once()
