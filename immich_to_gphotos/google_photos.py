@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import tempfile
@@ -18,6 +19,10 @@ PHOTOS_APP = "https://photos.google.com/"
 UPLOAD_BATCH_SIZE = 30
 UPLOAD_SETTLE_SECONDS = 15
 REFRESH_SESSION_WAIT_MS = 60_000
+PHOTOS_UI_COOKIE_NAME = "COMPASS"
+PHOTOS_UI_COOKIE_DOMAIN = "photos.google.com"
+SESSION_REFRESH_LEAD_DAYS = 3
+SESSION_REFRESH_LEAD_SECONDS = SESSION_REFRESH_LEAD_DAYS * 86400
 
 
 class GooglePhotosError(Exception):
@@ -74,6 +79,14 @@ class GooglePhotosSession:
             raise GooglePhotosError(
                 f"Google session not found at {self._auth_file}; run: immich-to-gphotos auth"
             )
+        if not photos_ui_session_needs_refresh(self._auth_file):
+            days_remaining = photos_ui_cookie_days_remaining(self._auth_file)
+            days_text = f"{days_remaining:.1f}" if days_remaining is not None else "?"
+            log.info(
+                "skipping Google session refresh "
+                f"(Photos UI cookie valid for {days_text} more days)"
+            )
+            return
 
         with sync_playwright() as p:
             browser, context, page = self._launch(p, headless=True, wait_after_goto_ms=0)
@@ -138,6 +151,50 @@ class GooglePhotosSession:
 
 def _chrome_profile_dir(auth_file: Path) -> Path:
     return auth_file.parent / "chrome-profile"
+
+
+def _photos_ui_cookie_expiry(auth_file: Path) -> float | None:
+    """Return COMPASS expiry (Unix seconds) from saved storage state, or None."""
+    try:
+        data = json.loads(auth_file.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    for cookie in data.get("cookies", []):
+        if (
+            cookie.get("name") == PHOTOS_UI_COOKIE_NAME
+            and cookie.get("domain") == PHOTOS_UI_COOKIE_DOMAIN
+        ):
+            expires = cookie.get("expires")
+            if isinstance(expires, (int, float)):
+                return float(expires)
+    return None
+
+
+def photos_ui_session_needs_refresh(
+    auth_file: Path,
+    *,
+    within_seconds: float = SESSION_REFRESH_LEAD_SECONDS,
+    now: float | None = None,
+) -> bool:
+    """True when the Photos UI cookie is missing, expired, or near expiry."""
+    expiry = _photos_ui_cookie_expiry(auth_file)
+    if expiry is None:
+        return True
+    current = time.time() if now is None else now
+    return expiry <= current + within_seconds
+
+
+def photos_ui_cookie_days_remaining(
+    auth_file: Path,
+    *,
+    now: float | None = None,
+) -> float | None:
+    """Days until the Photos UI cookie expires, or None if unknown."""
+    expiry = _photos_ui_cookie_expiry(auth_file)
+    if expiry is None:
+        return None
+    current = time.time() if now is None else now
+    return max(0.0, (expiry - current) / 86400)
 
 
 def _save_storage_state(context: BrowserContext, auth_file: Path) -> None:
